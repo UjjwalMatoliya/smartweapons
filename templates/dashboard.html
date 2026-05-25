@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS Tracker Dashboard</title>
+    
+    <!-- Leaflet CSS (Map) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Font Awesome (Icons) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        
+        /* Header */
+        .header {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            color: #00d4ff;
+        }
+        
+        .status-badge {
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .status-online {
+            background: #00c853;
+            color: white;
+        }
+        
+        .status-offline {
+            background: #ff1744;
+            color: white;
+        }
+        
+        /* Main Layout */
+        .container {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 20px;
+            padding: 20px;
+            height: calc(100vh - 70px);
+        }
+        
+        /* Left Panel */
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        /* Cards */
+        .card {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .card h3 {
+            font-size: 14px;
+            color: rgba(255,255,255,0.7);
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        /* Info Grid */
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .info-item {
+            text-align: center;
+            padding: 15px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 10px;
+        }
+        
+        .info-item i {
+            font-size: 24px;
+            color: #00d4ff;
+            margin-bottom: 10px;
+        }
+        
+        .info-item .value {
+            font-size: 20px;
+            font-weight: bold;
+        }
+        
+        .info-item .label {
+            font-size: 12px;
+            color: rgba(255,255,255,0.6);
+        }
+        
+        /* Battery Bar */
+        .battery-bar {
+            width: 100%;
+            height: 20px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        
+        .battery-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00c853, #69f0ae);
+            border-radius: 10px;
+            transition: width 0.5s ease;
+        }
+        
+        .battery-fill.low {
+            background: linear-gradient(90deg, #ff1744, #ff5252);
+        }
+        
+        .battery-fill.medium {
+            background: linear-gradient(90deg, #ff9100, #ffab40);
+        }
+        
+        /* Signal Bars */
+        .signal-bars {
+            display: flex;
+            gap: 3px;
+            justify-content: center;
+            align-items: flex-end;
+            height: 30px;
+        }
+        
+        .signal-bar {
+            width: 8px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 2px;
+        }
+        
+        .signal-bar.active {
+            background: #00d4ff;
+        }
+        
+        /* Relay Control */
+        .relay-control {
+            text-align: center;
+        }
+        
+        .relay-btn {
+            width: 100%;
+            padding: 20px;
+            border: none;
+            border-radius: 15px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .relay-on {
+            background: linear-gradient(135deg, #00c853, #69f0ae);
+            color: white;
+        }
+        
+        .relay-off {
+            background: linear-gradient(135deg, #ff1744, #ff5252);
+            color: white;
+        }
+        
+        .relay-btn:hover {
+            transform: scale(1.02);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        /* Map */
+        .map-container {
+            height: 100%;
+            border-radius: 15px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+        
+        /* Last Update Time */
+        .last-update {
+            font-size: 12px;
+            color: rgba(255,255,255,0.5);
+            text-align: center;
+            margin-top: 10px;
+        }
+        
+        /* Responsive */
+        @media (max-width: 900px) {
+            .container {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+            
+            .map-container {
+                height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <h1><i class="fas fa-satellite-dish"></i> GPS Tracker</h1>
+        <div id="statusBadge" class="status-badge status-offline">
+            <i class="fas fa-circle"></i> OFFLINE
+        </div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="container">
+        <!-- Left Panel -->
+        <div class="left-panel">
+            <!-- Location Card -->
+            <div class="card">
+                <h3><i class="fas fa-map-marker-alt"></i> Location</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <i class="fas fa latitude"></i>
+                        <div class="value" id="latValue">0.000000</div>
+                        <div class="label">Latitude</div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa longitude"></i>
+                        <div class="value" id="lngValue">0.000000</div>
+                        <div class="label">Longitude</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Speed Card -->
+            <div class="card">
+                <h3><i class="fas fa-tachometer-alt"></i> Speed</h3>
+                <div class="info-item" style="padding: 30px;">
+                    <i class="fas fa-car" style="font-size: 40px;"></i>
+                    <div class="value" id="speedValue" style="font-size: 40px;">0</div>
+                    <div class="label">km/h</div>
+                </div>
+            </div>
+            
+            <!-- Battery & Signal Card -->
+            <div class="card">
+                <h3><i class="fas fa-battery-full"></i> Battery & Signal</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <i class="fas fa-battery-full"></i>
+                        <div class="value" id="batteryValue">0%</div>
+                        <div class="battery-bar">
+                            <div class="battery-fill" id="batteryFill" style="width: 0%;"></div>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-signal"></i>
+                        <div class="value" id="signalValue">0%</div>
+                        <div class="signal-bars" id="signalBars">
+                            <div class="signal-bar" style="height: 8px;"></div>
+                            <div class="signal-bar" style="height: 14px;"></div>
+                            <div class="signal-bar" style="height: 20px;"></div>
+                            <div class="signal-bar" style="height: 26px;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="last-update">
+                    <span id="operatorValue">No Network</span> | 
+                    <span id="voltageValue">0V</span>
+                </div>
+            </div>
+            
+            <!-- Relay Control -->
+            <div class="card relay-control">
+                <h3><i class="fas fa-power-off"></i> Control</h3>
+                <button class="relay-btn relay-on" id="relayBtn" onclick="toggleRelay()">
+                    <i class="fas fa-power-off"></i> DEACTIVATE
+                </button>
+            </div>
+        </div>
+        
+        <!-- Map -->
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+    </div>
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        // ==================== VARIABLES ====================
+        let map;
+        let marker;
+        let pathLine;
+        let pathCoords = [];
+        let relayStatus = true;
+        let lastDataTime = 0;
+        
+        // ==================== INITIALIZE MAP ====================
+        function initMap() {
+            // Default location (India)
+            map = L.map('map').setView([21.251234, 82.123456], 13);
+            
+            // Add OpenStreetMap tiles
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+            
+            // Default marker
+            marker = L.marker([21.251234, 82.123456]).addTo(map);
+            marker.bindPopup("<b>Device Location</b>").openPopup();
+            
+            // Path line
+            pathLine = L.polyline([], {color: '#00d4ff', weight: 3}).addTo(map);
+        }
+        
+        // ==================== UPDATE DATA ====================
+        function updateDashboard() {
+            fetch('/get_latest')
+                .then(response => response.json())
+                .then(data => {
+                    if (data && data.lat && data.lng && data.lat > 0) {
+                        // Update Status
+                        document.getElementById('statusBadge').className = 'status-badge status-online';
+                        document.getElementById('statusBadge').innerHTML = '<i class="fas fa-circle"></i> ONLINE';
+                        lastDataTime = new Date().getTime();
+                        
+                        // Update Location
+                        document.getElementById('latValue').textContent = data.lat.toFixed(6);
+                        document.getElementById('lngValue').textContent = data.lng.toFixed(6);
+                        
+                        // Update Speed
+                        document.getElementById('speedValue').textContent = data.speed || 0;
+                        
+                        // Update Battery
+                        const battery = data.battery || 0;
+                        document.getElementById('batteryValue').textContent = battery + '%';
+                        const batteryFill = document.getElementById('batteryFill');
+                        batteryFill.style.width = battery + '%';
+                        
+                        // Battery color
+                        batteryFill.className = 'battery-fill';
+                        if (battery < 20) batteryFill.classList.add('low');
+                        else if (battery < 50) batteryFill.classList.add('medium');
+                        
+                        // Update Signal
+                        const signal = data.gsm_signal || 0;
+                        document.getElementById('signalValue').textContent = signal + '%';
+                        updateSignalBars(signal);
+                        
+                        // Update Network Info
+                        document.getElementById('operatorValue').textContent = data.operator || 'Unknown';
+                        document.getElementById('voltageValue').textContent = (data.voltage || 0).toFixed(2) + 'V';
+                        
+                        // Update Relay
+                        relayStatus = (data.relay === 'ON');
+                        updateRelayButton();
+                        
+                        // Update Map
+                        updateMapLocation(data.lat, data.lng);
+                        
+                        // Update History
+                        fetchHistory();
+                    } else {
+                        showOffline();
+                    }
+                })
+                .catch(error => {
+                    console.log('Error:', error);
+                    showOffline();
+                });
+        }
+        
+        function updateMapLocation(lat, lng) {
+            // Update marker
+            marker.setLatLng([lat, lng]);
+            map.setView([lat, lng], 15);
+            
+            // Add to path
+            pathCoords.push([lat, lng]);
+            if (pathCoords.length > 100) pathCoords.shift();
+            pathLine.setLatLngs(pathCoords);
+        }
+        
+        function updateSignalBars(signal) {
+            const bars = document.querySelectorAll('.signal-bar');
+            const activeBars = Math.ceil((signal / 100) * 4);
+            
+            bars.forEach((bar, index) => {
+                if (index < activeBars) {
+                    bar.classList.add('active');
+                } else {
+                    bar.classList.remove('active');
+                }
+            });
+        }
+        
+        function updateRelayButton() {
+            const btn = document.getElementById('relayBtn');
+            if (relayStatus) {
+                btn.className = 'relay-btn relay-on';
+                btn.innerHTML = '<i class="fas fa-power-off"></i> DEACTIVATE';
+            } else {
+                btn.className = 'relay-btn relay-off';
+                btn.innerHTML = '<i class="fas fa-power-off"></i> ACTIVATE';
+            }
+        }
+        
+        function showOffline() {
+            const now = new Date().getTime();
+            if (now - lastDataTime > 60000) { // 60 seconds
+                document.getElementById('statusBadge').className = 'status-badge status-offline';
+                document.getElementById('statusBadge').innerHTML = '<i class="fas fa-circle"></i> OFFLINE';
+            }
+        }
+        
+        // ==================== FETCH HISTORY ====================
+        function fetchHistory() {
+            fetch('/get_history')
+                .then(response => response.json())
+                .then(data => {
+                    if (data && data.length > 0) {
+                        pathCoords = data.map(d => [d.lat, d.lng]);
+                        pathLine.setLatLngs(pathCoords);
+                    }
+                })
+                .catch(error => console.log('History Error:', error));
+        }
+        
+        // ==================== RELAY CONTROL ====================
+        function toggleRelay() {
+            const command = relayStatus ? 'RELAY_OFF' : 'RELAY_ON';
+            
+            fetch('/set_command', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    device_id: 'tracker_001',
+                    command: command
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    relayStatus = !relayStatus;
+                    updateRelayButton();
+                    alert('Command sent: ' + command);
+                }
+            })
+            .catch(error => {
+                console.log('Error:', error);
+                alert('Failed to send command');
+            });
+        }
+        
+        // ==================== INITIALIZE ====================
+        document.addEventListener('DOMContentLoaded', function() {
+            initMap();
+            updateDashboard();
+            
+            // Update every 5 seconds
+            setInterval(updateDashboard, 5000);
+        });
+    </script>
+</body>
+</html>
